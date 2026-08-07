@@ -1,0 +1,28 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+# Test binary, built with `go test -c`
+*.test
+# Output of `go tool cover` / profiles
+*.out
+coverage.*
+*.prof
+*.pprof
+# Fuzz corpus caches (keep testdata/fuzz, drop the cache)
+**/testdata/fuzz/**/cache/
+# Go workspace file
+go.work
+go.work.sum
+# Env / secrets
+.env
+*.local
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+# Scratch
+/tmp

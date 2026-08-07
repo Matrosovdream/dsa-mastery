@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n '^#\\\\{1,3\\\\} ' 50-linear-structures.md)"
+    ]
+  }
+}
