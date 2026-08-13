@@ -520,6 +520,10 @@ FAIL
 
 Line 25 is the `if v > best` read; line 26 is the `best = v` write. The detector names both.
 
+> Re-verifying this lesson later, the same test **did** fail once — while fourteen packages were
+> building at the same time. Twelve isolated runs then passed 12/12. That is the failure mode
+> exactly: a real race that shows up under load, on someone else's machine, months later.
+
 **Takeaway:** for concurrent code a passing test is not evidence. `-race` is the evidence. It costs ~10× time and memory, so it's a gate — never a benchmark mode.
 
 ---
