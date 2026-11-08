@@ -14,6 +14,18 @@ go run .
 Everything in this tier is **deterministic** — no clocks, no randomness. Your output should match
 these blocks character for character.
 
+**Run the Rust twin of any example** (std only — nothing to install but `rustc`):
+
+```bash
+mkdir -p /tmp/dsa-rs && cd /tmp/dsa-rs
+# paste the Rust block into main.rs, then:
+rustc --edition 2024 -O main.rs && ./main
+```
+
+Every example below shows the Go program and its output first, then its **Rust twin** with its own real
+output and a short **Go vs Rust** note. Always build with `-O` — the examples measure time. Where a
+twin needs a different command (`--test`, a flag), it is shown under **Run it (Rust):** beneath the code.
+
 > ← Back to the [index](README.md) · Progress: [PROGRESS.md](PROGRESS.md) · Next tier: [🟡 medium](2-medium.md)
 
 ---
@@ -84,6 +96,57 @@ same data, same question, different structure:
   set   -> O(1) per lookup, O(n) to prepare once
 ```
 
+**Rust:**
+
+```rust
+use std::collections::HashSet;
+
+// contains answers "is x in the data?" by looking at every element: O(n).
+fn contains(xs: &[i32], x: i32) -> bool {
+    for &v in xs {
+        if v == x {
+            return true;
+        }
+    }
+    false
+}
+
+fn main() {
+    let data = [41, 7, 93, 12, 55, 8, 77, 30];
+
+    // Structure 1: a slice. Membership costs a scan.
+    println!("slice contains 55: {}", contains(&data, 55));
+    println!("slice contains 56: {}", contains(&data, 56));
+
+    // Structure 2: the same values in a set. Membership is one hash lookup.
+    // HashSet<T> is HashMap<T, ()> underneath -- the same "empty value" trick
+    // Go spells map[int]struct{}.
+    let set: HashSet<i32> = data.iter().copied().collect();
+    println!("set contains 55:   {}", set.contains(&55));
+    println!("set contains 56:   {}", set.contains(&56));
+
+    println!();
+    println!("same data, same question, different structure:");
+    println!("  slice -> O(n) per lookup, O(0) to prepare");
+    println!("  set   -> O(1) per lookup, O(n) to prepare once");
+}
+```
+
+**Rust output:**
+
+```
+slice contains 55: true
+slice contains 56: false
+set contains 55:   true
+set contains 56:   false
+
+same data, same question, different structure:
+  slice -> O(n) per lookup, O(0) to prepare
+  set   -> O(1) per lookup, O(n) to prepare once
+```
+
+> **Go vs Rust:** Rust has a real set type, `HashSet<T>` — it is a `HashMap<T, ()>` underneath, the same empty-value trick as Go's `map[int]struct{}`. The default hasher is SipHash-1-3, chosen to resist hash-flooding rather than for raw speed (lesson 10 returns to this).
+
 **Complexity:** slice lookup O(n) · set lookup O(1) average, O(n) worst · set build O(n) time and O(n) space
 
 ---
@@ -149,6 +212,53 @@ func main() {
 best case is flat -> O(1); worst case tracks n exactly -> O(n)
 this is why Big-O always names a case: the same code is both
 ```
+
+**Rust:**
+
+```rust
+// search_counting returns the index of x plus the number of comparisons it
+// took. Counting the work is machine-independent: the numbers are the same
+// everywhere. Rust returns Option<usize> where Go returns -1.
+fn search_counting(xs: &[i64], x: i64) -> (Option<usize>, u64) {
+    let mut comparisons = 0;
+    for (i, &v) in xs.iter().enumerate() {
+        comparisons += 1;
+        if v == x {
+            return (Some(i), comparisons);
+        }
+    }
+    (None, comparisons)
+}
+
+fn main() {
+    println!("{:>8} {:>14} {:>14}", "n", "best case", "worst case");
+    for n in [10, 100, 1000, 10000] {
+        let xs: Vec<i64> = (0..n).collect();
+        let (_, best) = search_counting(&xs, 0); // first element
+        let (_, worst) = search_counting(&xs, -1); // absent: every element checked
+        println!("{n:>8} {best:>14} {worst:>14}");
+    }
+
+    println!();
+    println!("best case is flat -> O(1); worst case tracks n exactly -> O(n)");
+    println!("this is why Big-O always names a case: the same code is both");
+}
+```
+
+**Rust output:**
+
+```
+       n      best case     worst case
+      10              1             10
+     100              1            100
+    1000              1           1000
+   10000              1          10000
+
+best case is flat -> O(1); worst case tracks n exactly -> O(n)
+this is why Big-O always names a case: the same code is both
+```
+
+> **Go vs Rust:** Rust returns `Option<usize>` where Go returns a `-1` sentinel: "not found" is a different type, so it cannot be mistaken for an index. The comparison counts are identical — they are a property of the algorithm, not the language.
 
 **Complexity:** best O(1) · worst O(n) · average O(n/2) = O(n) · space O(1)
 
@@ -231,6 +341,78 @@ func main() {
 10x the input costs the brute force ~100x the work, the map ~10x
 that gap IS the algorithm choice -- both loops are equally 'optimized'
 ```
+
+**Rust:**
+
+```rust
+use std::collections::HashMap;
+
+// two_sum_brute checks every pair: O(n^2). Returns the pair (if any) and the
+// number of pair checks it made.
+fn two_sum_brute(xs: &[i64], target: i64) -> (Option<(usize, usize)>, u64) {
+    let mut ops = 0;
+    for a in 0..xs.len() {
+        for b in a + 1..xs.len() {
+            ops += 1;
+            if xs[a] + xs[b] == target {
+                return (Some((a, b)), ops);
+            }
+        }
+    }
+    (None, ops)
+}
+
+// two_sum_map remembers what it has already seen: O(n) time, O(n) space.
+fn two_sum_map(xs: &[i64], target: i64) -> (Option<(usize, usize)>, u64) {
+    let mut ops = 0;
+    let mut seen: HashMap<i64, usize> = HashMap::with_capacity(xs.len());
+    for (b, &v) in xs.iter().enumerate() {
+        ops += 1;
+        if let Some(&a) = seen.get(&(target - v)) {
+            return (Some((a, b)), ops);
+        }
+        seen.insert(v, b);
+    }
+    (None, ops)
+}
+
+fn main() {
+    println!(
+        "{:>8} {:>16} {:>12} {:>12}",
+        "n", "brute ops", "map ops", "ratio"
+    );
+    for n in [10i64, 100, 1000, 10000] {
+        let xs: Vec<i64> = (0..n).collect();
+        let target = 2 * n - 3; // the last two elements: the worst case for the brute force
+
+        let (_, brute_ops) = two_sum_brute(&xs, target);
+        let (_, map_ops) = two_sum_map(&xs, target);
+        println!(
+            "{n:>8} {brute_ops:>16} {map_ops:>12} {:>11.0}x",
+            brute_ops as f64 / map_ops as f64
+        );
+    }
+
+    println!();
+    println!("10x the input costs the brute force ~100x the work, the map ~10x");
+    println!("that gap IS the algorithm choice -- both loops are equally 'optimized'");
+}
+```
+
+**Rust output:**
+
+```
+       n        brute ops      map ops        ratio
+      10               45           10           4x
+     100             4950          100          50x
+    1000           499500         1000         500x
+   10000         49995000        10000        5000x
+
+10x the input costs the brute force ~100x the work, the map ~10x
+that gap IS the algorithm choice -- both loops are equally 'optimized'
+```
+
+> **Go vs Rust:** Identical output, as it must be: operation counts belong to the algorithm. Both languages show the same 5000× gap at n=10,000.
 
 **Complexity:** brute O(n²) time, O(1) space · map O(n) time, O(n) space — the classic time-for-space trade
 
@@ -320,6 +502,96 @@ at 1 billion ops/second:
   2^n       at n=100     1.27e+30 ops -> 4.02e+13 years
 ```
 
+**Rust:**
+
+```rust
+// Go's %e and Rust's {:e} disagree on spelling: Go prints "1.02e+03", Rust
+// prints "1.02e3". go_exp rebuilds Go's form (explicit sign, 2+ exponent
+// digits) so the table below reads the same in both languages.
+fn go_exp(v: f64, prec: usize) -> String {
+    let s = format!("{v:.prec$e}");
+    let (mantissa, exp) = s.split_once('e').unwrap();
+    let exp: i32 = exp.parse().unwrap();
+    format!(
+        "{mantissa}e{}{:02}",
+        if exp < 0 { '-' } else { '+' },
+        exp.abs()
+    )
+}
+
+// pow2 formats 2^n, which stops fitting in an f64 above n = 1024.
+fn pow2(n: u32) -> String {
+    let v = 2f64.powf(f64::from(n));
+    if v.is_infinite() {
+        return "overflows f64".to_string();
+    }
+    go_exp(v, 2)
+}
+
+fn human_time(secs: f64) -> String {
+    if secs < 60.0 {
+        format!("{secs:.1} seconds")
+    } else if secs < 3600.0 {
+        format!("{:.1} minutes", secs / 60.0)
+    } else if secs < 86400.0 * 365.0 {
+        format!("{:.1} days", secs / 86400.0)
+    } else {
+        format!("{} years", go_exp(secs / (86400.0 * 365.0), 2))
+    }
+}
+
+fn main() {
+    println!(
+        "{:>8} {:>10} {:>12} {:>14} {:>14} {:>20}",
+        "n", "log2 n", "n", "n log2 n", "n^2", "2^n"
+    );
+    for n in [1u32, 10, 100, 1000, 10000] {
+        let f = f64::from(n);
+        let lg = f.log2();
+        println!(
+            "{n:>8} {lg:>10.1} {n:>12} {:>14.0} {:>14.0} {:>20}",
+            f * lg,
+            f * f,
+            pow2(n)
+        );
+    }
+
+    println!();
+    println!("at 1 billion ops/second:");
+    for (name, ops) in [
+        ("n log2 n at n=10^9", 1e9 * 1e9f64.log2()),
+        ("n^2       at n=10^6", 1e12),
+        ("2^n       at n=100", 2f64.powf(100.0)),
+    ] {
+        let secs = ops / 1e9;
+        println!(
+            "  {:<20} {:>10} ops -> {}",
+            name,
+            go_exp(ops, 2),
+            human_time(secs)
+        );
+    }
+}
+```
+
+**Rust output:**
+
+```
+       n     log2 n            n       n log2 n            n^2                  2^n
+       1        0.0            1              0              1             2.00e+00
+      10        3.3           10             33            100             1.02e+03
+     100        6.6          100            664          10000             1.27e+30
+    1000       10.0         1000           9966        1000000            1.07e+301
+   10000       13.3        10000         132877      100000000        overflows f64
+
+at 1 billion ops/second:
+  n log2 n at n=10^9     2.99e+10 ops -> 29.9 seconds
+  n^2       at n=10^6    1.00e+12 ops -> 16.7 minutes
+  2^n       at n=100     1.27e+30 ops -> 4.02e+13 years
+```
+
+> **Go vs Rust:** Go's `%e` and Rust's `{:e}` spell exponents differently (`1.02e+03` vs `1.02e3`), so `go_exp` rebuilds Go's form to keep the table comparable. The one deliberate difference in the output is the last cell: Rust names its type `f64`.
+
 **Complexity:** the program itself is O(1) — it's a lookup table for every complexity you'll meet later
 
 ---
@@ -398,6 +670,70 @@ func main() {
 the memo buys a drop from O(2^n) to O(n) calls by spending O(n) space
 time and space are a currency pair -- you trade one for the other
 ```
+
+**Rust:**
+
+```rust
+use std::collections::HashMap;
+
+// fib_naive recomputes the same subproblems over and over: O(2^n) calls.
+// Go keeps the counter in a package-level variable; Rust has no mutable
+// globals without unsafe or atomics, so the counter is passed down instead.
+fn fib_naive(n: u32, calls: &mut u64) -> u64 {
+    *calls += 1;
+    if n < 2 {
+        return u64::from(n);
+    }
+    fib_naive(n - 1, calls) + fib_naive(n - 2, calls)
+}
+
+// fib_memo spends O(n) space to remember each answer once: O(n) calls.
+fn fib_memo(n: u32, memo: &mut HashMap<u32, u64>, calls: &mut u64) -> u64 {
+    *calls += 1;
+    if n < 2 {
+        return u64::from(n);
+    }
+    if let Some(&v) = memo.get(&n) {
+        return v;
+    }
+    let v = fib_memo(n - 1, memo, calls) + fib_memo(n - 2, memo, calls);
+    memo.insert(n, v);
+    v
+}
+
+fn main() {
+    println!(
+        "{:>4} {:>16} {:>12} {:>12}",
+        "n", "naive calls", "memo calls", "fib(n)"
+    );
+    for n in [5, 10, 20, 30, 35] {
+        let (mut naive_calls, mut memo_calls) = (0, 0);
+        let got = fib_naive(n, &mut naive_calls);
+        fib_memo(n, &mut HashMap::with_capacity(n as usize), &mut memo_calls);
+        println!("{n:>4} {naive_calls:>16} {memo_calls:>12} {got:>12}");
+    }
+
+    println!();
+    println!("the memo buys a drop from O(2^n) to O(n) calls by spending O(n) space");
+    println!("time and space are a currency pair -- you trade one for the other");
+}
+```
+
+**Rust output:**
+
+```
+   n      naive calls   memo calls       fib(n)
+   5               15            9            5
+  10              177           19           55
+  20            21891           39         6765
+  30          2692537           59       832040
+  35         29860703           69      9227465
+
+the memo buys a drop from O(2^n) to O(n) calls by spending O(n) space
+time and space are a currency pair -- you trade one for the other
+```
+
+> **Go vs Rust:** Go keeps the call counters in package-level variables; Rust has no mutable globals without `unsafe` or atomics, so the counter is threaded through as `&mut u64`. Same counts, and the same 29,860,703 naive calls at n=35.
 
 **Complexity:** naive O(φⁿ) ≈ O(1.618ⁿ) time, O(n) stack · memo O(n) time, O(n) space — revisited in full at [30 — DP I](../../30-dp-one-dimensional.md)
 

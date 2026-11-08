@@ -1,6 +1,7 @@
 # dsa-mastery
 
-My notes and practice for data structures & algorithms — implemented, benchmarked and tested in **Go**.
+My notes and practice for data structures & algorithms — implemented, benchmarked and tested in **Go**,
+with a **Rust twin** beside every runnable example so the two languages can be read side by side.
 
 Companion repo to [golang-learning](https://github.com/Matrosovdream/golang-learning): that one teaches
 the language and backend services, this one teaches the structures and algorithms underneath them.
@@ -12,7 +13,11 @@ Same shape (lessons → graded examples → practice → projects), different su
 and Go's memory model, through the classic structures (lists, heaps, trees, graphs) and the paradigms
 (greedy, divide & conquer, backtracking, DP), and end with a capstone. Each lesson is one markdown
 file with notes, exercises, pitfalls and a checklist. Each lesson also gets a set of small runnable
-examples under [learning-plan/examples/](learning-plan/examples/), graded easy → medium → hard.
+examples under [learning-plan/examples/](learning-plan/examples/), graded easy → medium → hard. Every
+example is a Go program with its real output, followed by the same example in **Rust** with *its* real
+output and a short *Go vs Rust* note — where the two languages disagree, the Rust program prints what
+its own numbers show rather than repeating Go's claim. See
+[learning-plan/examples/README.md](learning-plan/examples/README.md) for what "the same example" means.
 
 Where I'm at is tracked in [learning-plan/PROGRESS.md](learning-plan/PROGRESS.md).
 
@@ -37,10 +42,22 @@ says so and shows the idiomatic version. Hand-rolling is for learning; productio
    # paste an example into main.go, then:
    go run .
    ```
+   To run the Rust twin instead — std only, nothing to install but `rustc`:
+   ```bash
+   mkdir -p /tmp/dsa-rs && cd /tmp/dsa-rs
+   # paste the Rust block into main.rs, then (always -O: the examples measure time):
+   rustc --edition 2024 -O main.rs && ./main
+   ```
 3. Write your own answers to the exercises in [practice/](practice/) — one folder per lesson.
 4. Run the gates before you call a lesson done:
    ```bash
    gofmt -l . && go vet ./... && go test -race ./... && go test -bench=. -benchmem ./...
+   ```
+   and for any Rust twin you add or change:
+   ```bash
+   rustfmt --edition 2024 --check main.rs \
+     && clippy-driver --edition 2024 -D warnings main.rs \
+     && rustc --edition 2024 -O main.rs && ./main
    ```
 5. Update PROGRESS.md when a lesson is done.
 

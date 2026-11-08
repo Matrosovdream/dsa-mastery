@@ -16,6 +16,18 @@ real stdout.
 - **Sample output** (6, 9, 13, 14, 15): stack measurements and timings, from an Apple M4 with Go 1.26.3.
 - Examples **9 and 15 spawn a child process** to demonstrate a real stack overflow, so their tracebacks differ every run.
 
+**Every example also has a Rust twin**, in the same tier file: Go → Go output → Rust → Rust output →
+a short *Go vs Rust* note. The twins are std-only single files, built with `rustc --edition 2024 -O`, and
+each one passed `rustfmt`, `clippy -D warnings` and a real run before being added; the Rust output
+blocks are the binary's real stdout, captured — never typed. Where the two languages disagree, the note
+says so and the Rust program prints what *its* numbers show, not Go's.
+
+```bash
+mkdir -p /tmp/dsa-rs && cd /tmp/dsa-rs
+# paste a Rust block into main.rs, then:
+rustc --edition 2024 -O main.rs && ./main
+```
+
 | Tier | File | Examples |
 |------|------|----------|
 | 🟢 Easy | [1-easy.md](1-easy.md) | 1–6 |

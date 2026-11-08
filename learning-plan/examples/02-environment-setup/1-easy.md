@@ -14,6 +14,20 @@ go test -v ./ex01
 Test output includes a wall-clock time on the `ok` line (`ok l02/ex01 0.546s`) — yours will differ.
 Everything above that line is deterministic.
 
+**Run the Rust twin of any example** (std only — nothing to install but `rustc`). Most are
+`#[cfg(test)]` files: one `.rs` file holding the code and its tests, where Go needed two files.
+
+```bash
+mkdir -p /tmp/dsa-rs && cd /tmp/dsa-rs
+# paste the Rust block into max.rs, then:
+rustc --edition 2024 --test max.rs -o max && ./max     # run every test
+./max negatives                                        # run the tests whose name contains "negatives"
+```
+
+Every example below shows the Go package and its output first, then its **Rust twin** with its own real
+output and a short **Go vs Rust** note. Twins that are plain programs instead of test files (benchmarks,
+fuzzing, measurements) say so under **Run it (Rust):** — build those with `rustc --edition 2024 -O`.
+
 > ← Back to the [index](README.md) · Progress: [PROGRESS.md](PROGRESS.md) · Next tier: [🟡 medium](2-medium.md)
 
 ---
@@ -99,6 +113,73 @@ go test -v ./ex01
 PASS
 ok  	l02/ex01	0.546s
 ```
+
+**Rust:**
+
+```rust
+// Rust has no separate test file: unit tests sit in the SAME file as the code,
+// inside a `#[cfg(test)] mod tests` that exists only in a test build
+// (`rustc --test`, or `cargo test`). Every test is a plain `#[test] fn` --
+// no framework, no assertions library.
+
+/// Returns the largest element of `xs`. `None` means `xs` had no elements at
+/// all -- an algorithm that can fail must say so in its signature, and in Rust
+/// the type does it: there is no zero to confuse with a real answer.
+fn max(xs: &[i64]) -> Option<i64> {
+    let (&first, rest) = xs.split_first()?;
+    let mut best = first;
+    for &v in rest {
+        if v > best {
+            best = v;
+        }
+    }
+    Some(best)
+}
+
+#[cfg(test)]
+mod tests {
+    // The test module is a child of the module under test, so `super::*`
+    // reaches everything in it -- private items included.
+    use super::*;
+
+    #[test]
+    fn max_of_three() {
+        // expect() is Go's t.Fatal: it stops this test now, because the value
+        // below would be meaningless.
+        let got = max(&[3, 9, 4]).expect("max([3, 9, 4]) returned None for a non-empty slice");
+        // Rust has no t.Errorf: a failed assert_eq! also ends the test.
+        assert_eq!(got, 9, "max([3, 9, 4])");
+    }
+
+    #[test]
+    fn max_of_nothing() {
+        assert_eq!(
+            max(&[]),
+            None,
+            "max([]) must report that there is no maximum"
+        );
+    }
+}
+```
+
+**Run it (Rust):**
+
+```bash
+rustc --edition 2024 --test max.rs -o max && ./max
+```
+
+**Rust sample output:**
+
+```
+
+running 2 tests
+test tests::max_of_three ... ok
+test tests::max_of_nothing ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+> **Go vs Rust:** Rust keeps unit tests in the same file, in a `#[cfg(test)] mod tests` that is a child of the code it tests, so it sees private items just as the Go test shares the package. `Option<i64>` replaces the `(int, bool)` pair, and std has no `t.Errorf`: a failed assertion panics and ends that test. libtest prints its own summary line with a timing, so the output is a sample.
 
 **Takeaway:** tests are ordinary Go code in the same package — which is why they can reach the unexported fields your data structures will keep their invariants in.
 
@@ -220,6 +301,77 @@ go test -v -run 'TestMax/negatives' ./ex02
 PASS
 ok  	l02/ex02	0.135s
 ```
+
+**Rust:**
+
+```rust
+/// Returns the largest element of `xs`, and `None` if `xs` is empty.
+fn max(xs: &[i64]) -> Option<i64> {
+    let (&first, rest) = xs.split_first()?;
+    let mut best = first;
+    for &v in rest {
+        if v > best {
+            best = v;
+        }
+    }
+    Some(best)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // libtest has no t.Run subtests, so "one named test per case" is built with
+    // a small macro: every row of the table below expands into its own
+    // `#[test] fn`. Adding a case is adding a line -- which is the whole point --
+    // and each case reports its own name and can be re-run alone by filtering.
+    macro_rules! max_cases {
+        ($($name:ident: $xs:expr => $want:expr,)*) => {
+            $(
+                #[test]
+                fn $name() {
+                    let xs: &[i64] = &$xs;
+                    assert_eq!(max(xs), $want, "max({xs:?})");
+                }
+            )*
+        };
+    }
+
+    max_cases! {
+        empty: [] => None,
+        single: [7] => Some(7),
+        ascending: [1, 2, 3] => Some(3),
+        descending: [3, 2, 1] => Some(3),
+        max_in_middle: [1, 9, 2] => Some(9),
+        duplicates: [4, 4, 4] => Some(4),
+        negatives: [-5, -2, -9] => Some(-2),
+    }
+}
+```
+
+**Run it (Rust):**
+
+```bash
+rustc --edition 2024 --test max.rs -o max && ./max
+```
+
+**Rust sample output:**
+
+```
+
+running 7 tests
+test tests::empty ... ok
+test tests::ascending ... ok
+test tests::max_in_middle ... ok
+test tests::descending ... ok
+test tests::duplicates ... ok
+test tests::negatives ... ok
+test tests::single ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+> **Go vs Rust:** libtest has no `t.Run` subtests, so a small `macro_rules!` expands each row of the table into its own `#[test]`; that is what makes a case individually named and runnable: `./max negatives` runs only that test (the summary then reads `1 passed; ... 6 filtered out`). The seven tests run in parallel, so their lines can appear in any order; a plain array-plus-loop table (used in examples 3 and 4) is shorter but cannot be filtered per case.
 
 **Takeaway:** `-run 'TestName/case_name'` is the debugging loop — one case, one second, no noise.
 
@@ -352,6 +504,90 @@ PASS
 ok  	l02/ex03	0.285s
 ```
 
+**Rust:**
+
+```rust
+/// Returns the even numbers in `xs`, in order.
+///
+/// Note what it returns when nothing matches: an empty Vec that has never
+/// allocated (capacity 0). Rust has no nil slice, so this is as close as it
+/// gets to Go's "nil until the first append" -- and, unlike Go, it is not a
+/// trap, because nothing in the language can tell it apart from any other
+/// empty Vec.
+fn evens(xs: &[i64]) -> Vec<i64> {
+    xs.iter().copied().filter(|v| v % 2 == 0).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // In Rust `==` already works on Vec and slices, and it compares CONTENTS --
+    // that is Go's slices.Equal. There is no reflect.DeepEqual counterpart
+    // that looks at representation, so nil-versus-empty cannot be asserted
+    // here; the only difference left to observe is capacity.
+    #[test]
+    fn empty_is_empty() {
+        let got = evens(&[1, 3, 5]); // nothing matches
+
+        assert!(got.is_empty());
+        assert_eq!(
+            got.capacity(),
+            0,
+            "no match: nothing was ever pushed, so nothing was allocated"
+        );
+
+        // Same contents -> equal, whatever the capacity.
+        assert_eq!(got, Vec::<i64>::new());
+        assert_eq!(got, Vec::<i64>::with_capacity(16));
+
+        // If "no answer" must differ from "an empty answer", say so in the
+        // type: Option<Vec<_>> keeps them apart, and `==` then agrees.
+        let no_answer: Option<Vec<i64>> = None;
+        let empty_answer: Option<Vec<i64>> = Some(Vec::new());
+        assert_ne!(no_answer, empty_answer);
+    }
+
+    // So: compare with `==` (assert_eq!) for algorithm output.
+    #[test]
+    fn evens_table() {
+        // (name, input, want). The slices are `&[i64]`, so a case never has to
+        // decide between "nil" and "empty": `&[]` is the only way to write it.
+        let tests: &[(&str, &[i64], &[i64])] = &[
+            ("empty input", &[], &[]),
+            ("no matches", &[1, 3], &[]),
+            ("all match", &[2, 4], &[2, 4]),
+            ("mixed", &[1, 2, 3, 4], &[2, 4]),
+            ("negatives", &[-2, -3], &[-2]),
+            ("zero is even", &[0, 1], &[0]),
+        ];
+
+        for &(name, xs, want) in tests {
+            assert_eq!(evens(xs), want, "{name}: evens({xs:?})");
+        }
+    }
+}
+```
+
+**Run it (Rust):**
+
+```bash
+rustc --edition 2024 --test filter.rs -o filter && ./filter
+```
+
+**Rust sample output:**
+
+```
+
+running 2 tests
+test tests::evens_table ... ok
+test tests::empty_is_empty ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+> **Go vs Rust:** Rust has no nil slice, so the trap does not exist: `==` on `Vec`/slices compares contents like `slices.Equal`, and nothing plays the role of `reflect.DeepEqual`. The nearest thing to Go's "nil until the first append" is a `Vec` with capacity 0 (asserted above); if "no answer" must differ from "empty answer", the type to use is `Option<Vec<T>>`.
+
 **Takeaway:** `slices.Equal` for contents. Reach for `reflect.DeepEqual` only when nil-vs-empty is the thing you mean to assert — and then say so in a comment.
 
 ---
@@ -465,6 +701,87 @@ go test ./ex04
 ```
 ok  	l02/ex04	0.308s
 ```
+
+**Rust:**
+
+```rust
+/// Returns the smallest and largest elements of `xs` in a single pass.
+fn min_max(xs: &[i64]) -> Option<(i64, i64)> {
+    let (&first, rest) = xs.split_first()?;
+    let (mut min, mut max) = (first, first);
+    for &v in rest {
+        if v < min {
+            min = v;
+        }
+        if v > max {
+            max = v;
+        }
+    }
+    Some((min, max))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The checklist. Every sequence algorithm in this plan gets these cases, in
+    // this order, before any "interesting" case is written. Most algorithm bugs
+    // live in the first four rows -- not in the logic you were concentrating on.
+    #[test]
+    fn min_max_checklist() {
+        // (name, input, want). Rust has no nil slice, so Go's "nil" and "empty"
+        // rows are one row here.
+        type Want = Option<(i64, i64)>;
+        let tests: &[(&str, &[i64], Want)] = &[
+            // --- the empty/tiny boundary ---
+            ("empty", &[], None),
+            ("single", &[5], Some((5, 5))),
+            ("two ascending", &[1, 2], Some((1, 2))),
+            ("two descending", &[2, 1], Some((1, 2))),
+            // --- degenerate content ---
+            ("all equal", &[3, 3, 3], Some((3, 3))),
+            ("duplicates", &[2, 5, 2, 5], Some((2, 5))),
+            // --- ordering ---
+            ("already sorted", &[1, 2, 3, 4], Some((1, 4))),
+            ("reverse sorted", &[4, 3, 2, 1], Some((1, 4))),
+            ("min at end", &[5, 6, 0], Some((0, 6))),
+            ("max at end", &[5, 1, 9], Some((1, 9))),
+            // --- value range ---
+            ("negatives", &[-3, -1, -7], Some((-7, -1))),
+            ("crosses zero", &[-1, 0, 1], Some((-1, 1))),
+            (
+                "extremes",
+                &[i64::MAX, i64::MIN],
+                Some((i64::MIN, i64::MAX)),
+            ),
+        ];
+
+        // One assert_eq! covers both "was there an answer" and "which one", so
+        // a missing answer cannot cascade into a confusing second failure.
+        for &(name, xs, want) in tests {
+            assert_eq!(min_max(xs), want, "{name}: min_max({xs:?})");
+        }
+    }
+}
+```
+
+**Run it (Rust):**
+
+```bash
+rustc --edition 2024 --test minmax.rs -o minmax && ./minmax
+```
+
+**Rust sample output:**
+
+```
+
+running 1 test
+test tests::min_max_checklist ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+> **Go vs Rust:** `Option<(i64, i64)>` replaces `(min, max, ok)`, so the "was there an answer" check and the value check are one `assert_eq!`, and Go's `nil` and `empty` rows collapse into one because Rust has no nil slice (13 rows, not 14). This is one test looping over the table, so the first failing row ends it, where Go's subtests each report separately; and a binary built without `-O`, as in the command above, has overflow checks on, so an overflow bug at the `extremes` row panics instead of wrapping silently.
 
 **Takeaway:** the checklist is: **nil · empty · single · two · all-equal · duplicates · sorted · reverse-sorted · negatives · extremes**. Write it before you write the interesting cases.
 
@@ -607,6 +924,109 @@ The bug: `for lo < hi` exits when the range narrows to exactly one element, with
 So the first and last elements — the ones a binary search reaches last — are never found. The fix is
 `for lo <= hi`. The four table cases all happened to terminate before that point.
 
+**Rust:**
+
+```rust
+use std::cmp::Ordering;
+
+/// Returns the index of `target` in the sorted slice `xs`, or `None`.
+///
+/// This implementation has a bug. It is the single most common binary-search
+/// bug there is, and the tests in `search_table` do not catch it -- while
+/// a coverage tool would report every statement as run.
+fn search(xs: &[i64], target: i64) -> Option<usize> {
+    // isize, not usize: `hi = mid - 1` reaches -1 for a target below xs[0],
+    // and a usize would underflow there.
+    let (mut lo, mut hi) = (0isize, xs.len() as isize - 1);
+    while lo < hi {
+        // <-- the bug lives here
+        let mid = (lo + hi) / 2;
+        let at = mid as usize;
+        match xs[at].cmp(&target) {
+            Ordering::Equal => return Some(at),
+            Ordering::Less => lo = mid + 1,
+            Ordering::Greater => hi = mid - 1,
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A perfectly reasonable-looking table. Every branch of `search` runs at
+    // least once, so statement coverage would be 100% -- and every case passes.
+    #[test]
+    fn search_table() {
+        let xs = [1, 3, 5, 7];
+        // (name, target, want)
+        let tests = [
+            ("hits mid immediately", 3, Some(1)),
+            ("found after moving lo", 5, Some(2)),
+            ("absent above range", 9, None),
+            ("absent below range", 0, None),
+        ];
+
+        for (name, target, want) in tests {
+            assert_eq!(
+                search(&xs, target),
+                want,
+                "{name}: search({xs:?}, {target})"
+            );
+        }
+    }
+
+    // linear_search is the oracle: too slow to ship, too simple to be wrong.
+    fn linear_search(xs: &[i64], target: i64) -> Option<usize> {
+        xs.iter().position(|&v| v == target)
+    }
+
+    // Exhaustive over a tiny domain -- no randomness needed. Every element of
+    // the slice, plus every value that isn't in it.
+    //
+    // In the Go version this test FAILS, and that is the point. Here it is
+    // marked #[should_panic] with the exact counterexamples, so the file can be
+    // shown running green; delete the attribute and it fails like the Go one.
+    #[test]
+    #[should_panic(expected = "search([1, 3, 5, 7], 1) = None, oracle says Some(0)\n\
+                    search([1, 3, 5, 7], 7) = None, oracle says Some(3)")]
+    fn search_against_oracle() {
+        let xs = [1, 3, 5, 7];
+
+        let mut failures = Vec::new();
+        for target in 0..=8 {
+            let (got, want) = (search(&xs, target), linear_search(&xs, target));
+            if got != want {
+                failures.push(format!(
+                    "search({xs:?}, {target}) = {got:?}, oracle says {want:?}"
+                ));
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+}
+```
+
+**Run it (Rust):**
+
+```bash
+rustc --edition 2024 --test search.rs -o search && ./search
+```
+
+**Rust sample output:**
+
+```
+
+running 2 tests
+test tests::search_table ... ok
+test tests::search_against_oracle - should panic ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+> **Go vs Rust:** Both Go commands become one test binary: `search_against_oracle` is marked `#[should_panic]` with both counterexamples spelled out so the file runs green; without the attribute it fails exactly like the Go run (exit code 101), and with `lo <= hi` it passes. `go test -cover` has no std counterpart; `cargo llvm-cov` is the usual tool and is not installed here, so no coverage figure appears above (a separate `-C instrument-coverage` build read with Apple's `llvm-cov` showed every line of `search` executed by the table test, which is the 100% the Go output reports). "Not found" is `None` instead of `-1`, hence `None`/`Some(0)` in the counterexamples.
+
 **Takeaway:** coverage answers "which lines ran", never "were the assertions right". A 4-case table can be 100% covered and 0% correct.
 
 ---
@@ -702,6 +1122,137 @@ Reading a row: `BenchmarkSum-10` is the name plus `GOMAXPROCS`; `4499440` is how
 ran to get a stable measurement; then time per operation, bytes allocated per operation, and number of
 allocations per operation. `Collect` needs **12 allocations** to build a 1000-element slice it could
 have built in 1 — that's the growth story, measured.
+
+**Rust:**
+
+```rust
+// Stable Rust has no built-in benchmark runner (`#[bench]` is nightly-only; the
+// real tools are criterion or divan under `cargo bench`, which are crates). So
+// this is a std-only harness in an ordinary `main`: a counting allocator gives
+// B/op and allocs/op (Go's -benchmem), a calibrating loop gives ns/op (b.Loop).
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::hint::black_box;
+use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+use std::time::{Duration, Instant};
+
+// ---- the code under measurement ----
+
+/// Adds every element of `xs`.
+fn sum(xs: &[i64]) -> i64 {
+    let mut total = 0;
+    for &v in xs {
+        total += v;
+    }
+    total
+}
+
+/// Returns a new Vec holding the first `n` integers, without telling the Vec
+/// how big the result will be.
+fn collect(n: i64) -> Vec<i64> {
+    let mut out = Vec::new();
+    for i in 0..n {
+        out.push(i);
+    }
+    out
+}
+
+/// Same result, but the capacity is reserved up front.
+fn collect_with_capacity(n: i64) -> Vec<i64> {
+    let mut out = Vec::with_capacity(n as usize);
+    for i in 0..n {
+        out.push(i);
+    }
+    out
+}
+
+// ---- allocation counter: stand-in for -benchmem / b.ReportAllocs() ----
+struct Counting;
+static ALLOCS: AtomicUsize = AtomicUsize::new(0); // allocation events (alloc + realloc)
+static BYTES: AtomicUsize = AtomicUsize::new(0); // bytes requested, summed over all events
+
+unsafe impl GlobalAlloc for Counting {
+    // `unsafe` is unavoidable: GlobalAlloc is an unsafe trait. Every method only
+    // counts and then forwards to the system allocator unchanged.
+    unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+        ALLOCS.fetch_add(1, Relaxed);
+        BYTES.fetch_add(l.size(), Relaxed);
+        unsafe { System.alloc(l) }
+    }
+    unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+        unsafe { System.dealloc(p, l) }
+    }
+    unsafe fn realloc(&self, p: *mut u8, l: Layout, new: usize) -> *mut u8 {
+        ALLOCS.fetch_add(1, Relaxed);
+        BYTES.fetch_add(new, Relaxed);
+        unsafe { System.realloc(p, l, new) }
+    }
+}
+#[global_allocator]
+static GLOBAL: Counting = Counting;
+
+/// (allocation events, bytes requested) for ONE call of `f`.
+fn allocs_of<R>(f: &mut impl FnMut() -> R) -> (usize, usize) {
+    let (a0, b0) = (ALLOCS.load(Relaxed), BYTES.load(Relaxed));
+    drop(black_box(f()));
+    (ALLOCS.load(Relaxed) - a0, BYTES.load(Relaxed) - b0)
+}
+
+/// Calibrates like b.Loop: grows the iteration count until a run takes
+/// ~200 ms. Returns (iterations of the final run, ns per iteration).
+fn ns_per_op(mut f: impl FnMut()) -> (u64, f64) {
+    let target = Duration::from_millis(200);
+    let mut n: u64 = 1;
+    loop {
+        let t = Instant::now();
+        for _ in 0..n {
+            f();
+        }
+        let el = t.elapsed();
+        if el >= target || n >= 1 << 40 {
+            return (n, el.as_nanos() as f64 / n as f64);
+        }
+        let per = el.as_nanos().max(1) as f64 / n as f64;
+        n = ((target.as_nanos() as f64 * 1.2 / per) as u64).clamp(n + 1, n * 100);
+    }
+}
+
+/// One benchmark row: name, iterations, ns/op, B/op, allocs/op.
+fn bench<R>(name: &str, mut f: impl FnMut() -> R) {
+    let (allocs, bytes) = allocs_of(&mut f);
+    let (iters, ns) = ns_per_op(|| drop(black_box(f())));
+    println!("{name:<22}{iters:>10}{ns:>12.1} ns/op{bytes:>8} B/op{allocs:>4} allocs/op");
+}
+
+fn main() {
+    println!("os: {}", std::env::consts::OS);
+    println!("arch: {}", std::env::consts::ARCH);
+
+    let input = collect(1000);
+    bench("sum", || sum(black_box(&input)));
+    bench("collect", || collect(black_box(1000)));
+    bench("collect_with_capacity", || {
+        collect_with_capacity(black_box(1000))
+    });
+}
+```
+
+**Run it (Rust):**
+
+```bash
+rustc --edition 2024 -O sum.rs -o sum && ./sum
+```
+
+**Rust sample output:**
+
+```
+os: macos
+arch: aarch64
+sum                      4292027        56.0 ns/op       0 B/op   0 allocs/op
+collect                   363817       609.3 ns/op   16352 B/op   9 allocs/op
+collect_with_capacity     862094       281.4 ns/op    8000 B/op   1 allocs/op
+```
+
+> **Go vs Rust:** Stable Rust has no `testing.B`: `#[bench]` is nightly-only and `cargo bench` on stable needs a crate such as criterion or divan (not run here), so this is a std-only harness (`ns_per_op` plus a counting allocator) in an ordinary `main`. The allocation columns are deterministic: `Vec::push` from empty took 9 allocation events and 16,352 bytes (capacities 4, 8, ... 1024, i.e. 8 x 2044 bytes) where Go's `append` took 12 and 25,208, and reserving capacity first took 1 event and 8,000 bytes and ran about 2x faster in each of three runs. I do not compare the ns/op column with Go's row: it is a different run and compiler.
 
 **Takeaway:** `-run='^$'` skips tests, `-benchmem` adds the two columns that catch the mistakes Big-O can't see.
 

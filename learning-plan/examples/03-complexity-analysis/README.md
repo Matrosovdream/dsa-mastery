@@ -24,6 +24,18 @@ exactly reproducible:
 - **Deterministic** (1–8, 10–12, and the count tables in 13): match character for character.
 - **Sample output** (9, 13's timings, 14–16): machine-dependent. Produced on an Apple M4, Go 1.26.3.
 
+**Every example also has a Rust twin**, in the same tier file: Go → Go output → Rust → Rust output →
+a short *Go vs Rust* note. The twins are std-only single files, built with `rustc --edition 2024 -O`, and
+each one passed `rustfmt`, `clippy -D warnings` and a real run before being added; the Rust output
+blocks are the binary's real stdout, captured — never typed. Where the two languages disagree, the note
+says so and the Rust program prints what *its* numbers show, not Go's.
+
+```bash
+mkdir -p /tmp/dsa-rs && cd /tmp/dsa-rs
+# paste a Rust block into main.rs, then:
+rustc --edition 2024 -O main.rs && ./main
+```
+
 | Tier | File | Examples |
 |------|------|----------|
 | 🟢 Easy | [1-easy.md](1-easy.md) | 1–6 |

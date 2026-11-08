@@ -17,6 +17,18 @@ real stdout.
 
 Examples 14 and 16 take roughly 30 seconds each.
 
+**Every example also has a Rust twin**, in the same tier file: Go → Go output → Rust → Rust output →
+a short *Go vs Rust* note. The twins are std-only single files, built with `rustc --edition 2024 -O`, and
+each one passed `rustfmt`, `clippy -D warnings` and a real run before being added; the Rust output
+blocks are the binary's real stdout, captured — never typed. Where the two languages disagree, the note
+says so and the Rust program prints what *its* numbers show, not Go's.
+
+```bash
+mkdir -p /tmp/dsa-rs && cd /tmp/dsa-rs
+# paste a Rust block into main.rs, then:
+rustc --edition 2024 -O main.rs && ./main
+```
+
 | Tier | File | Examples |
 |------|------|----------|
 | 🟢 Easy | [1-easy.md](1-easy.md) | 1–6 |
