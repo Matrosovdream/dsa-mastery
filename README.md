@@ -32,6 +32,16 @@ Where I'm at is tracked in [learning-plan/PROGRESS.md](learning-plan/PROGRESS.md
 Then, when the stdlib already ships it (`slices.Sort`, `container/heap`, `map`, `sync.Map`), the lesson
 says so and shows the idiomatic version. Hand-rolling is for learning; production code uses the stdlib.
 
+**Teach it in words, then show it in two languages.** Every lesson, when Claude walks me through it, is:
+
+1. **Text first** — the idea in plain prose, one concept at a time, in lesson order (01 → 45).
+2. **Small examples in Go *and* Rust, side by side** — a few lines each, the same program in both
+   languages, so I can compare them.
+3. **Real output only** — every example is formatted, linted (`gofmt`/`go vet`, `rustfmt`/`clippy -D warnings`)
+   and actually run before it's shown; the output is pasted from the run, never written by hand.
+4. **Count, don't guess** — examples print operation counts (not just timings) wherever a complexity
+   claim is being made.
+
 ## How to use it
 
 1. Open the next lesson, e.g. [learning-plan/03-complexity-analysis.md](learning-plan/03-complexity-analysis.md).
