@@ -131,8 +131,8 @@
   library has **no selection function**: you sort, or you write quickselect yourself.
 
 - **Divide & conquer has a stack cost.** Merge sort's depth is ⌈lg n⌉ on every input. Naive
-  quicksort's depth is n − 1 on sorted input. Go survives that because a goroutine stack grows (up to
-  1 GB on 64-bit); a Rust thread has a fixed stack, and example 5 shows what that means.
+  quicksort's depth is n − 1 on sorted input. Go survives that because a goroutine stack grows (the limit
+  is 1,000,000,000 bytes on 64-bit, and because the stack doubles, 512 MiB is the largest it can actually reach); a Rust thread has a fixed stack, and example 5 shows what that means.
 
 ### Go and Rust side by side
 - **Two sorts, explicitly named.** `v.sort()` / `sort_by` / `sort_by_key` are **stable** and run
